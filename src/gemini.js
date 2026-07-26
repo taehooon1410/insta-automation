@@ -2,7 +2,10 @@
  * Gemini API를 통한 원문 텍스트 패러프레이징 및 카드뉴스 구성 생성
  */
 export async function generateCardNewsContent(article, apiKey) {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // Google Gemma 모델 (gemma-4-31b-it) 사용
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${apiKey}`;
+
+
 
 
 
@@ -54,7 +57,11 @@ export async function generateCardNewsContent(article, apiKey) {
   }
 
   const result = await response.json();
-  const textOutput = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const parts = result.candidates?.[0]?.content?.parts || [];
+  // 생각(thought) 부분을 제외한 실제 응답 텍스트 추출
+  const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
+  const textOutput = targetPart.text || '';
+
   
   // JSON 추출
   const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
