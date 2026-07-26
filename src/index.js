@@ -54,11 +54,15 @@ export default {
         
         if (msgObj && msgObj.chat) {
           const chatId = msgObj.chat.id;
-          const text = (msgObj.text || '').trim();
-          const lowerText = text.toLowerCase();
+          const rawText = msgObj.text || '';
+          const lowerText = rawText.trim().toLowerCase();
 
-          // 1. 카드뉴스 생성 키워드 (만들기, /generate, /start)
-          if (lowerText.includes('만들기') || lowerText.startsWith('/generate') || lowerText.startsWith('/start')) {
+          // 1. 상태 및 도움말 명령어 (우선 처리)
+          if (lowerText.includes('/status')) {
+            await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상 연동)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash + Gemma 4 31B IT\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
+          } else if (lowerText.includes('/help')) {
+            await sendTelegramMessage(chatId, "💡 **[텔레그램 봇 명령어 가이드]**\n\n• `만들기` 또는 `/generate` : 카드뉴스 제작 파이프라인 즉시 실행\n• `/status` : 시스템 상태 확인\n• `/help` : 도움말 보기", env.TELEGRAM_BOT_TOKEN);
+          } else if (lowerText.includes('만들기') || lowerText.includes('/generate') || lowerText.includes('/start')) {
             // 즉시 가동 알림 전송
             const statusMsg = await sendTelegramMessage(chatId, "🚀 **[인스타그램 카드뉴스 자동 생성 시작]**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
             const msgId = statusMsg.result?.message_id;
@@ -72,7 +76,6 @@ export default {
               };
 
               try {
-                // 파이프라인 실행 시 현재 메시지를 보낸 사용자의 chatId를 우선적으로 사용하도록 동적 전달
                 const currentEnv = { ...env, TELEGRAM_CHAT_ID: String(chatId) };
                 await runAutomationPipeline(currentEnv, onProgress);
               } catch (pipelineErr) {
@@ -82,14 +85,11 @@ export default {
                 }
               }
             })());
-          } else if (lowerText.startsWith('/status')) {
-            await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상 연동)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash + Gemma 4 31B IT\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
-          } else if (lowerText.startsWith('/help')) {
-            await sendTelegramMessage(chatId, "💡 **[텔레그램 봇 명령어 가이드]**\n\n• `만들기` 또는 `/generate` : 카드뉴스 제작 파이프라인 즉시 실행\n• `/status` : 시스템 상태 확인\n• `/help` : 도움말 보기", env.TELEGRAM_BOT_TOKEN);
-          } else {
-            await sendTelegramMessage(chatId, `👋 안녕하세요, ${msgObj.from?.first_name || '사용자'}님!\n\n아래 명령어나 **\`만들기\`**를 입력하시면 카드뉴스가 생성됩니다:\n\n• \`/generate\` 또는 \`만들기\`\n• \`/status\`\n• \`/help\``, env.TELEGRAM_BOT_TOKEN);
+          } else if (rawText.length > 0) {
+            await sendTelegramMessage(chatId, `👋 안녕하세요! 아래 명령어나 **\`만들기\`**를 입력해 보세요:\n\n• \`/generate\` 또는 \`만들기\` : 카드뉴스 제작\n• \`/status\` : 시스템 상태 확인\n• \`/help\` : 도움말 보기`, env.TELEGRAM_BOT_TOKEN);
           }
         }
+
 
         // 2. 콜백 쿼리 (승인 / 거절 버튼)
         if (update.callback_query) {
