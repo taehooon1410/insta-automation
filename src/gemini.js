@@ -1,20 +1,37 @@
 /**
- * Gemini & Gemma API 조합 모듈 (429 쿼터 초과 대비 자동 Fallback 지원)
+ * Gemini & Gemma API 조합 모듈 (429 쿼터 초과 대비 자동 모델 감지 및 Fallback 지원)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  // 사용 가능한 무상 AI 모델 순차적 시도 목록 (429 무상 쿼터 회피)
-  const candidateModels = [
+  // 현재 내 Google AI 계정에서 사용할 수 있는 모델 목록 자동 조회
+  let candidateModels = [
+    'gemini-2.5-flash',
     'gemini-2.0-flash-lite',
     'gemini-1.5-flash-8b',
     'gemini-1.5-pro',
     'gemini-2.0-flash'
   ];
 
+  try {
+    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
+    if (listRes.ok) {
+      const listData = await listRes.json();
+      const availableNames = (listData.models || [])
+        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+        .map(m => m.name.replace('models/', ''));
+      
+      if (availableNames.length > 0) {
+        // 백엔드 지원 모델들을 상위에 배치
+        candidateModels = [...new Set([...availableNames, ...candidateModels])];
+      }
+    }
+  } catch (e) {
+    console.warn("Failed to fetch model list, using default candidates.");
+  }
 
   let cardNewsResult = null;
   let lastError = null;
 
-  // 1. 본문 생성 모델 시도
+  // 1. 본문 생성 모델 시도 (쿼터 초과 시 다음 모델로 자동 전환)
   for (const model of candidateModels) {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -28,7 +45,7 @@ export async function generateCardNewsContent(article, apiKey) {
    - 슬라이드 2: 핵심 사실 및 내용 설명 1
    - 슬라이드 3: 핵심 사실 및 내용 설명 2
    - 슬라이드 4: 결론 + 강력한 프로필 링크 유도(CTA) 및 댓글 참여 유도 멘트
-3. 배경 이미지 검색용 영문 단어 키워드 1개를 추출하세요 (예: space, galaxy, ocean, robot, brain).
+3. 배경 이미지 검색용 영문 단어 키워드 1개를 추출하세요.
 
 [원문 정보]
 제목: ${article.title}
@@ -68,44 +85,19 @@ export async function generateCardNewsContent(article, apiKey) {
       const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         cardNewsResult = JSON.parse(jsonMatch[0]);
-        console.log(`✅ AI Model (${model}) 성공적으로 콘텐츠 생성 완료!`);
+        console.log(`✅ AI Model (${model}) 호출 성공!`);
         break; // 성공 시 루프 탈출
       }
     } catch (err) {
-      console.warn(`⚠️ 모델 (${model}) 호출 실패, 다음 모델로 자동 전환 시도 중:`, err.message);
+      console.warn(`⚠️ 모델 (${model}) 실패, 다음 가용 모델로 전환 시도 중:`, err.message);
       lastError = err;
     }
   }
 
   if (!cardNewsResult) {
-    throw new Error(`모든 AI 모델 호출 실패: ${lastError?.message || '쿼터 초과'}`);
+    throw new Error(`모든 AI 모델 호출 실패: ${lastError?.message || '쿼터 제한'}`);
   }
 
-  // 2. Gemma 모델로 적절한 한글 파일명 추가 설정
-  try {
-    const gemmaEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${apiKey}`;
-    const gemmaPrompt = `다음 기사 제목을 참고하여 텔레그램 PDF/이미지 저장을 위한 짧고 명확한 한글 파일명(제목) 1개를 추천해줘. 파일명에 특수문자 없이 띄어쓰기는 언더바(_)로 대체해서 오직 파일명 텍스트만 출력해줘.\n기사제목: ${article.title}`;
-
-    const gemmaRes = await fetch(gemmaEndpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: gemmaPrompt }] }] })
-    });
-
-    if (gemmaRes.ok) {
-      const gemmaData = await gemmaRes.json();
-      const parts = gemmaData.candidates?.[0]?.content?.parts || [];
-      const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
-      const cleanName = (targetPart.text || '').trim().replace(/[^a-zA-Z0-9가-힣_]/g, '');
-      if (cleanName) cardNewsResult.fileName = cleanName;
-    }
-  } catch (e) {
-    cardNewsResult.fileName = cardNewsResult.fileName || "cardnews";
-  }
-
-  if (!cardNewsResult.fileName) {
-    cardNewsResult.fileName = "cardnews";
-  }
-
+  cardNewsResult.fileName = cardNewsResult.title ? cardNewsResult.title.replace(/[^a-zA-Z0-9가-힣_]/g, '_').slice(0, 30) : 'cardnews';
   return cardNewsResult;
 }
