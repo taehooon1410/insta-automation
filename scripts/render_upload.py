@@ -83,6 +83,11 @@ def generate_slides(slides_text, bg_image_url):
         page_str = f"{idx + 1} / {len(slides_text)}"
         draw.text((512, 1010), page_str, fill=(200, 200, 200), font=page_font)
 
+        # 이미지 파일 저장
+        filename = f"slide_{idx + 1}.jpg"
+        img.convert("RGB").save(filename, "JPEG", quality=95)
+        generated_files.append(filename)
+        print(f"[INFO] Saved slide {idx + 1}: {filename}")
         
     # 슬라이드들을 Gemma가 정해준 제목의 PDF 문서로 결합
     custom_name = os.getenv("CUSTOM_FILE_NAME", "cardnews")
@@ -91,6 +96,7 @@ def generate_slides(slides_text, bg_image_url):
         img_objs = [Image.open(f).convert("RGB") for f in generated_files]
         img_objs[0].save(pdf_path, save_all=True, append_images=img_objs[1:])
         print(f"[SUCCESS] PDF generated with Gemma title: {pdf_path}")
+
 
     return generated_files, pdf_path
 
