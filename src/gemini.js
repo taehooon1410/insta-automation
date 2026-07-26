@@ -1,11 +1,22 @@
 /**
- * Gemini API 모듈 (429 Rate Limit 대비 자동 Retry & Backoff 지연 처리)
+ * Gemini API 모듈 (429 Rate Limit 회피 및 다양한 무료 모델 Fallback 지원)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  const model = 'gemini-2.0-flash';
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  // 구글 무료 티어 쿼터 회피용 가용 모델 순서
+  const candidateModels = [
+    'gemini-2.0-flash-lite-preview',
+    'gemini-1.5-pro',
+    'gemini-2.0-flash-lite',
+    'gemini-2.0-flash'
+  ];
 
-  const prompt = `
+  let cardNewsResult = null;
+  let lastError = null;
+
+  for (const model of candidateModels) {
+    try {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const prompt = `
 당신은 인스타그램 카드뉴스 전문 에디터입니다. 아래 원문 기사를 바탕으로 인스타그램에 포스팅할 100% 저작권 안전한 한국어 카드뉴스를 만들어주세요.
 
 [원칙]
@@ -36,42 +47,38 @@ export async function generateCardNewsContent(article, apiKey) {
 }
 `;
 
-  let response = null;
-  let attempts = 0;
-  const maxAttempts = 3;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
 
-  while (attempts < maxAttempts) {
-    attempts++;
-    response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-    });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Model ${model} (${response.status}): ${errorText}`);
+      }
 
-    if (response.ok) {
-      break;
-    }
+      const result = await response.json();
+      const parts = result.candidates?.[0]?.content?.parts || [];
+      const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
+      const textOutput = targetPart.text || '';
 
-    if (response.status === 429 && attempts < maxAttempts) {
-      console.log(`⚠️ Gemini API 429 쿼터 초과. ${attempts * 5}초 후 재시도 중...`);
-      await new Promise(resolve => setTimeout(resolve, attempts * 5000));
-    } else {
-      const errorText = await response.text();
-      throw new Error(`Gemini API 오류 (${response.status}): ${errorText}`);
+      const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        cardNewsResult = JSON.parse(jsonMatch[0]);
+        console.log(`✅ AI 모델 (${model})로 카드뉴스 생성 성공!`);
+        break;
+      }
+    } catch (err) {
+      console.warn(`⚠️ 모델 ${model} 호출 실패, 다음 모델로 자동 전환 시도:`, err.message);
+      lastError = err;
     }
   }
 
-  const result = await response.json();
-  const parts = result.candidates?.[0]?.content?.parts || [];
-  const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
-  const textOutput = targetPart.text || '';
-
-  const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) {
-    throw new Error('Gemini 응답에서 JSON 파싱 실패');
+  if (!cardNewsResult) {
+    throw new Error(`Google AI API 사용량(쿼터) 초과 429 에러입니다. 약 1분 후 다시 /generate 또는 만들기를 실행해 주세요!\n상세오류: ${lastError?.message}`);
   }
 
-  const cardNewsResult = JSON.parse(jsonMatch[0]);
   cardNewsResult.fileName = cardNewsResult.title ? cardNewsResult.title.replace(/[^a-zA-Z0-9가-힣_]/g, '_').slice(0, 30) : 'cardnews';
   return cardNewsResult;
 }
