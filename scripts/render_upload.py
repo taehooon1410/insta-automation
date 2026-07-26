@@ -84,14 +84,16 @@ def generate_slides(slides_text, bg_image_url):
         draw.text((512, 1010), page_str, fill=(200, 200, 200), font=page_font)
 
         
-    # 슬라이드들을 하나의 PDF 문서로 결합
-    pdf_path = "cardnews.pdf"
+    # 슬라이드들을 Gemma가 정해준 제목의 PDF 문서로 결합
+    custom_name = os.getenv("CUSTOM_FILE_NAME", "cardnews")
+    pdf_path = f"{custom_name}.pdf"
     if generated_files:
         img_objs = [Image.open(f).convert("RGB") for f in generated_files]
         img_objs[0].save(pdf_path, save_all=True, append_images=img_objs[1:])
-        print(f"[SUCCESS] PDF generated: {pdf_path}")
+        print(f"[SUCCESS] PDF generated with Gemma title: {pdf_path}")
 
     return generated_files, pdf_path
+
 
 # 3. 텔레그램으로 이미지 슬라이드 및 PDF 파일 직접 전송
 def send_results_to_telegram(image_paths, pdf_path, caption):

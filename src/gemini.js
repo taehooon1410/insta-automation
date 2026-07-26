@@ -1,17 +1,33 @@
 /**
- * Gemini API를 통한 원문 텍스트 패러프레이징 및 카드뉴스 구성 생성
+ * Gemini API & Gemma API 조합
+ * - 내용 재창작: 고성능 Gemini API (gemini-2.0-flash)
+ * - 파일명 및 제목 설정: 한도가 넉넉한 Google Gemma API (gemma-4-31b-it)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  // Google Gemma 모델 (gemma-4-31b-it) 사용
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${apiKey}`;
+  // 1. Gemma 모델로 적절한 파일명/제목 생성
+  const gemmaEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemma-4-31b-it:generateContent?key=${apiKey}`;
+  const gemmaPrompt = `다음 기사 제목을 참고하여 텔레그램 PDF/이미지 저장을 위한 짧고 명확한 한글 파일명(제목) 1개를 추천해줘. 파일명에 특수문자 없이 띄어쓰기는 언더바(_)로 대체해서 오직 파일명 텍스트만 출력해줘.\n기사제목: ${article.title}`;
 
+  let customFileName = "cardnews";
+  try {
+    const gemmaRes = await fetch(gemmaEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: gemmaPrompt }] }] })
+    });
+    if (gemmaRes.ok) {
+      const gemmaData = await gemmaRes.json();
+      const parts = gemmaData.candidates?.[0]?.content?.parts || [];
+      const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
+      const cleanName = (targetPart.text || '').trim().replace(/[^a-zA-Z0-9가-힣_]/g, '');
+      if (cleanName) customFileName = cleanName;
+    }
+  } catch (err) {
+    console.error("Gemma 파일명 생성 실패, 기본값 사용:", err.message);
+  }
 
-
-
-
-
-
-
+  // 2. Gemini 모델로 카드뉴스 고급 텍스트 생성
+  const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
   const prompt = `
 당신은 인스타그램 카드뉴스 전문 에디터입니다. 아래 원문 기사를 바탕으로 인스타그램에 포스팅할 100% 저작권 안전한 한국어 카드뉴스를 만들어주세요.
 
@@ -22,33 +38,31 @@ export async function generateCardNewsContent(article, apiKey) {
    - 슬라이드 2: 핵심 사실 및 내용 설명 1
    - 슬라이드 3: 핵심 사실 및 내용 설명 2
    - 슬라이드 4: 결론 + 강력한 프로필 링크 유도(CTA) 및 댓글 참여 유도 멘트
-3. 배경 이미지 검색용 영문 단어 키워드 1개를 추출하세요 (예: space, galaxy, ocean, robot, brain).
+3. 배경 이미지 검색용 영문 단어 키워드 1개를 추출하세요.
 
 [원문 정보]
 제목: ${article.title}
 내용: ${article.description}
 
 [출력 형식]
-반드시 다른 설명 없이 아래 JSON 규격으로만 응답하세요:
+반드시 아래 JSON 규격으로만 응답하세요:
 {
-  "title": "카드뉴스 전체 대표 제목",
+  "title": "카드뉴스 대표 제목",
   "imageKeyword": "영문키워드",
   "slides": [
-    "1번 슬라이드 문구 (제목)",
-    "2번 슬라이드 문구 (본문1)",
-    "3번 슬라이드 문구 (본문2)",
-    "4번 슬라이드 문구 (CTA 및 댓글 유도)"
+    "1번 슬라이드 문구",
+    "2번 슬라이드 문구",
+    "3번 슬라이드 문구",
+    "4번 슬라이드 문구"
   ],
-  "caption": "인스타그램 게시글에 들어갈 캡션 텍스트 (해시태그 포함)"
+  "caption": "인스타그램 게시글 캡션 (해시태그 포함)"
 }
 `;
 
-  const response = await fetch(endpoint, {
+  const response = await fetch(geminiEndpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }]
-    })
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
   });
 
   if (!response.ok) {

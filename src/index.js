@@ -150,9 +150,11 @@ async function runAutomationPipeline(env, onProgress = null) {
     slides: cardNews.slides,
     caption: cardNews.caption,
     imageUrl: bgImageUrl,
+    fileName: cardNews.fileName || 'cardnews',
     botToken: env.TELEGRAM_BOT_TOKEN,
     chatId: env.TELEGRAM_CHAT_ID
   });
+
 
   return {
     title: cardNews.title,

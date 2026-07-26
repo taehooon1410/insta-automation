@@ -3,18 +3,20 @@
  */
 
 // 1. 관리자 텔레그램 채널로 생성된 콘텐츠 승인 요청 전송
-export async function sendTelegramApproval({ title, slides, caption, imageUrl, botToken, chatId }) {
+export async function sendTelegramApproval({ title, slides, caption, imageUrl, fileName, botToken, chatId }) {
   const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
   const slidePreview = slides.map((s, i) => `📌 **[슬라이드 ${i + 1}]**\n${s}`).join('\n\n');
   const messageText = `🚀 **[인스타 카드뉴스 생성 완료 - 승인 요청]**\n\n` +
-    `📖 **제목**: ${title}\n\n` +
+    `📖 **제목**: ${title}\n` +
+    `📁 **Gemma 지정 파일명**: \`${fileName}.pdf\`\n\n` +
     `${slidePreview}\n\n` +
     `📝 **인스타 캡션**:\n${caption}\n\n` +
     `🖼 **배경 이미지**: ${imageUrl}`;
 
   // 승인 데이터 유지를 위해 인코딩
-  const payloadData = JSON.stringify({ slides, caption, imageUrl });
+  const payloadData = JSON.stringify({ slides, caption, imageUrl, fileName });
+
   const encodedPayload = Buffer.from(payloadData).toString('base64url').slice(0, 60); // 텔레그램 callback_data 길이 제한 호환
 
   const inlineKeyboard = {
