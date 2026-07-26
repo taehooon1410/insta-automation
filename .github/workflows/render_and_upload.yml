@@ -1,8 +1,10 @@
 name: Render Card News & Upload to Instagram
 
 on:
+  workflow_dispatch:
   repository_dispatch:
     types: [trigger_render_upload]
+
 
 jobs:
   render-and-post:
