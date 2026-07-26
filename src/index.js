@@ -49,12 +49,12 @@ export default {
       try {
         const update = await request.json();
         
-        // 1. 일반 메세지 / 명령어 처리 ("만들기", /generate, /status, /help)
+        // 1. 일반 메세지 / 명령어 처리 ("만들기", /generate, /status, /help 등)
         if (update.message && update.message.text) {
           const chatId = update.message.chat.id;
-          const text = update.message.text.trim();
+          const text = update.message.text.trim().toLowerCase();
 
-          if (text.includes('만들기') || text === '/generate' || text === '/start') {
+          if (text.includes('만들기') || text.startsWith('/generate') || text.startsWith('/start')) {
             const statusMsg = await sendTelegramMessage(chatId, "🚀 **[인스타그램 카드뉴스 자동 생성 시작]**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
             const msgId = statusMsg.result?.message_id;
 
@@ -72,13 +72,17 @@ export default {
                 await editTelegramMessage(chatId, msgId, `❌ **[생성 실패]**\n\n오류: ${pipelineErr.message}`, env.TELEGRAM_BOT_TOKEN);
               }
             }
-          } else if (text === '/status') {
+          } else if (text.startsWith('/status')) {
             await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash + Gemma 4 31B IT\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
-          } else if (text === '/help') {
+          } else if (text.startsWith('/help')) {
             await sendTelegramMessage(chatId, "💡 **[텔레그램 봇 명령어 가이드]**\n\n• `만들기` 또는 `/generate` : 카드뉴스 제작 파이프라인 즉시 실행\n• `/status` : 시스템 상태 및 Cron 스케줄 확인\n• `/help` : 도움말 보기", env.TELEGRAM_BOT_TOKEN);
+          } else {
+            // 기본 키워드 안내
+            await sendTelegramMessage(chatId, "👋 안녕하세요! 아래 명령어나 `만들기`를 입력해 보세요:\n\n• `/generate` 또는 `만들기` : 카드뉴스 제작\n• `/status` : 시스템 상태 확인\n• `/help` : 도움말", env.TELEGRAM_BOT_TOKEN);
           }
           return new Response('OK');
         }
+
 
         // 2. 콜백 쿼리 (승인 / 거절 버튼)
         if (update.callback_query) {
