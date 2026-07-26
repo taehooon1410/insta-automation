@@ -49,26 +49,24 @@ export default {
       try {
         const update = await request.json();
 
-        // 메세지 추출 (message 또는 edited_message 또는 channel_post)
+        // 텔레그램 메세지 객체
         const msgObj = update.message || update.edited_message || update.channel_post;
         
         if (msgObj && msgObj.chat) {
           const chatId = msgObj.chat.id;
           const rawText = msgObj.text || '';
+
+          // 수신 즉시 사용자 대화방으로 응답 전송
+          await sendTelegramMessage(chatId, `🔔 **[봇 메시지 수신 성공]**\n\n입력하신 메시지: \`${rawText}\`\n\n카드뉴스를 생성하려면 **\`만들기\`** 또는 **\`/generate\`**를 입력하세요!`, env.TELEGRAM_BOT_TOKEN);
+
           const lowerText = rawText.trim().toLowerCase();
 
-          // 1. 상태 및 도움말 명령어 (우선 처리)
-          if (lowerText.includes('/status')) {
-            await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상 연동)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash + Gemma 4 31B IT\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
-          } else if (lowerText.includes('/help')) {
-            await sendTelegramMessage(chatId, "💡 **[텔레그램 봇 명령어 가이드]**\n\n• `만들기` 또는 `/generate` : 카드뉴스 제작 파이프라인 즉시 실행\n• `/status` : 시스템 상태 확인\n• `/help` : 도움말 보기", env.TELEGRAM_BOT_TOKEN);
-          } else if (lowerText.includes('만들기') || lowerText.includes('/generate') || lowerText.includes('/start')) {
-            // 즉시 가동 알림 전송
-            const statusMsg = await sendTelegramMessage(chatId, "🚀 **[인스타그램 카드뉴스 자동 생성 시작]**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
-            const msgId = statusMsg.result?.message_id;
-
-            // 백그라운드 파이프라인 가동
+          // 카드뉴스 파이프라인 트리거
+          if (lowerText.includes('만들기') || lowerText.includes('/generate') || lowerText.includes('/start')) {
             ctx.waitUntil((async () => {
+              const statusMsg = await sendTelegramMessage(chatId, "🚀 **[인스타그램 카드뉴스 자동 생성 시작]**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
+              const msgId = statusMsg.result?.message_id;
+
               const onProgress = async (stepText) => {
                 if (msgId) {
                   await editTelegramMessage(chatId, msgId, `🚀 **[인스타그램 카드뉴스 자동 생성]**\n\n${stepText}`, env.TELEGRAM_BOT_TOKEN);
@@ -80,15 +78,11 @@ export default {
                 await runAutomationPipeline(currentEnv, onProgress);
               } catch (pipelineErr) {
                 await sendTelegramMessage(chatId, `🚨 **[카드뉴스 생성 오류]**\n\n\`\`\`\n${pipelineErr.stack || pipelineErr.message}\n\`\`\``, env.TELEGRAM_BOT_TOKEN);
-                if (msgId) {
-                  await editTelegramMessage(chatId, msgId, `❌ **[생성 실패]**\n\n오류: ${pipelineErr.message}`, env.TELEGRAM_BOT_TOKEN);
-                }
               }
             })());
-          } else if (rawText.length > 0) {
-            await sendTelegramMessage(chatId, `👋 안녕하세요! 아래 명령어나 **\`만들기\`**를 입력해 보세요:\n\n• \`/generate\` 또는 \`만들기\` : 카드뉴스 제작\n• \`/status\` : 시스템 상태 확인\n• \`/help\` : 도움말 보기`, env.TELEGRAM_BOT_TOKEN);
           }
         }
+
 
 
         // 2. 콜백 쿼리 (승인 / 거절 버튼)
