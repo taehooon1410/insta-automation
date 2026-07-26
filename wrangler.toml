@@ -6,6 +6,10 @@ compatibility_date = "2024-01-01"
 [triggers]
 crons = ["0 0,9 * * *"]
 
+[ai]
+binding = "AI"
+
+
 # 바인딩할 환경변수 목록 (Cloudflare Dashboard 또는 CLI에서 wrangler secret put으로 설정)
 # - GEMINI_API_KEY
 # - UNSPLASH_ACCESS_KEY

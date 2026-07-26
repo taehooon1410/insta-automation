@@ -126,9 +126,10 @@ async function runAutomationPipeline(env, onProgress = null) {
   }
   const targetArticle = rssItems[Math.floor(Math.random() * rssItems.length)];
 
-  // Step 2: Gemini API를 통한 한국어 100% 재창작(Paraphrasing) 카드뉴스 구성
-  if (onProgress) await onProgress("🤖 [2/4] Gemini 2.0 AI가 한국어로 카드뉴스를 재창작(Paraphrasing)하는 중...");
-  const cardNews = await generateCardNewsContent(targetArticle, env.GEMINI_API_KEY);
+  // Step 2: Gemini API & Cloudflare Workers AI를 통한 한국어 100% 재창작 카드뉴스 구성
+  if (onProgress) await onProgress("🤖 [2/4] AI 엔진이 한국어로 카드뉴스를 재창작(Paraphrasing)하는 중...");
+  const cardNews = await generateCardNewsContent(targetArticle, env.GEMINI_API_KEY, env.AI);
+
 
   // Step 3: Unsplash API 상업용 무료 배경 이미지 추출
   if (onProgress) await onProgress("🖼 [3/4] Unsplash CC0 무료 고화질 배경 이미지를 추출하는 중...");
