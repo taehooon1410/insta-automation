@@ -1,8 +1,8 @@
 /**
- * Gemini API 모듈 (100% 작동 검증된 gemini-flash-latest 지정)
+ * Gemini API 모듈 (글로벌 2.5 Flash 모델 기반 연동)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  const model = 'gemini-flash-latest';
+  const model = 'gemini-2.5-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const prompt = `
@@ -38,7 +38,9 @@ export async function generateCardNewsContent(article, apiKey) {
 
   const response = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 
+      'Content-Type': 'application/json'
+    },
     body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
   });
 
