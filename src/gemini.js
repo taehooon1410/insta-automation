@@ -2,12 +2,14 @@
  * Gemini & Gemma API 조합 모듈 (429 쿼터 초과 대비 자동 Fallback 지원)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  // 사용 가능한 무상 AI 모델 순차적 시도 목록
+  // 사용 가능한 무상 AI 모델 순차적 시도 목록 (429 무상 쿼터 회피)
   const candidateModels = [
-    'gemma-4-31b-it',
-    'gemini-2.5-flash',
+    'gemini-2.0-flash-lite',
+    'gemini-1.5-flash-8b',
+    'gemini-1.5-pro',
     'gemini-2.0-flash'
   ];
+
 
   let cardNewsResult = null;
   let lastError = null;
