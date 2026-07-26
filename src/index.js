@@ -36,69 +36,42 @@ export default {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ success: false, error: err.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ success: false, error: err.message }), { status: 500 });
       }
     }
 
-
-    // [텔레그램 Webhook 수신] -> POST /telegram-webhook
+    // 텔레그램 Webhook 수신 -> POST /telegram-webhook
     if (url.pathname === '/telegram-webhook' && request.method === 'POST') {
+
       try {
         const update = await request.json();
-
-        // 텔레그램 메세지 객체
-        const msgObj = update.message || update.edited_message || update.channel_post;
         
-        if (msgObj && msgObj.chat) {
-          const chatId = msgObj.chat.id;
-          const rawText = msgObj.text || '';
+        if (update && update.message) {
+          const chatId = update.message.chat.id;
+          const text = (update.message.text || '').trim().toLowerCase();
 
-          // 수신 즉시 사용자 대화방으로 응답 전송
-          await sendTelegramMessage(chatId, `🔔 **[봇 메시지 수신 성공]**\n\n입력하신 메시지: \`${rawText}\`\n\n카드뉴스를 생성하려면 **\`만들기\`** 또는 **\`/generate\`**를 입력하세요!`, env.TELEGRAM_BOT_TOKEN);
-
-          const lowerText = rawText.trim().toLowerCase();
-
-          // 카드뉴스 파이프라인 트리거
-          if (lowerText.includes('만들기') || lowerText.includes('/generate') || lowerText.includes('/start')) {
+          if (text.includes('만들기') || text.includes('/generate') || text.includes('/start')) {
             ctx.waitUntil((async () => {
-              const statusMsg = await sendTelegramMessage(chatId, "🚀 **[인스타그램 카드뉴스 자동 생성 시작]**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
-              const msgId = statusMsg.result?.message_id;
-
-              const onProgress = async (stepText) => {
-                if (msgId) {
-                  await editTelegramMessage(chatId, msgId, `🚀 **[인스타그램 카드뉴스 자동 생성]**\n\n${stepText}`, env.TELEGRAM_BOT_TOKEN);
-                }
-              };
-
-              try {
-                const currentEnv = { ...env, TELEGRAM_CHAT_ID: String(chatId) };
-                await runAutomationPipeline(currentEnv, onProgress);
-              } catch (pipelineErr) {
-                await sendTelegramMessage(chatId, `🚨 **[카드뉴스 생성 오류]**\n\n\`\`\`\n${pipelineErr.stack || pipelineErr.message}\n\`\`\``, env.TELEGRAM_BOT_TOKEN);
-              }
+              await sendTelegramMessage(chatId, "🚀 **[Cloudflare 백엔드] 인스타그램 카드뉴스 생성 시작**\n\n- RSS 파싱 & Gemini AI 가동 중...", env.TELEGRAM_BOT_TOKEN);
+              const currentEnv = { ...env, TELEGRAM_CHAT_ID: String(chatId) };
+              await runAutomationPipeline(currentEnv);
             })());
+          } else {
+            await sendTelegramMessage(chatId, `🤖 **[Cloudflare Workers 클라우드 백엔드]**\n\n안녕하세요! **\`만들기\`** 또는 **\`/generate\`**를 입력하시면 카드뉴스가 자동 생성됩니다.`, env.TELEGRAM_BOT_TOKEN);
           }
         }
 
-
-
-        // 2. 콜백 쿼리 (승인 / 거절 버튼)
-        if (update.callback_query) {
+        if (update && update.callback_query) {
           const cb = update.callback_query;
-          const data = cb.data;
-
-          if (data.startsWith('approve_')) {
-            await answerCallbackQuery(cb.id, '✅ 승인되었습니다! 카드뉴스 PDF 전송을 시작합니다.', env.TELEGRAM_BOT_TOKEN);
-
+          if (cb.data && cb.data.startsWith('approve_')) {
+            await answerCallbackQuery(cb.id, '✅ 승인되었습니다! GitHub Actions에서 카드뉴스 PDF를 텔레그램으로 전송합니다.', env.TELEGRAM_BOT_TOKEN);
+            
             if (env.GITHUB_REPO && env.GH_PAT) {
               await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
                 method: 'POST',
                 headers: {
                   'Authorization': `Bearer ${env.GH_PAT}`,
-                  'User-Agent': 'Cloudflare-Worker-AutoInsta',
+                  'User-Agent': 'Cloudflare-Worker',
                   'Accept': 'application/vnd.github.v3+json'
                 },
                 body: JSON.stringify({
@@ -107,22 +80,20 @@ export default {
                 })
               });
             }
-          } else if (data === 'reject_post') {
-            await answerCallbackQuery(cb.id, '❌ 포스팅이 거절되었습니다.', env.TELEGRAM_BOT_TOKEN);
           }
         }
 
         return new Response('OK', { status: 200 });
       } catch (err) {
-        console.error("Webhook Error:", err);
+        console.error("Worker Webhook Error:", err.message);
         return new Response('OK', { status: 200 });
       }
     }
 
-
-    return new Response('🚀 Cloudflare Pages/Worker 인스타그램 자동화 중앙 컨트롤러 작동 중');
+    return new Response('🚀 Cloudflare Worker 백엔드 작동 중');
   }
 };
+
 
 
 
