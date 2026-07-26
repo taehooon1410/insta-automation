@@ -26,7 +26,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          CLIENT_PAYLOAD: ${{ json(github.event.client_payload) }}
+          CLIENT_PAYLOAD: '${{ toJson(github.event.client_payload) }}'
         run: |
           python scripts/render_upload.py
+
 
