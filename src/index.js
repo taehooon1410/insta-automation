@@ -143,9 +143,13 @@ async function runAutomationPipeline(env, onProgress = null) {
     caption: cardNews.caption,
     imageUrl: bgImageUrl,
     fileName: cardNews.fileName || 'cardnews',
+    articleLink: cardNews.articleLink,
+    articleSource: cardNews.articleSource,
+    articleSummary: cardNews.articleSummary,
     botToken: env.TELEGRAM_BOT_TOKEN,
     chatId: env.TELEGRAM_CHAT_ID
   });
+
 
 
   return {

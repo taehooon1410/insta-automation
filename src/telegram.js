@@ -3,16 +3,28 @@
  */
 
 // 1. 관리자 텔레그램 채널로 생성된 콘텐츠 승인 요청 전송
-export async function sendTelegramApproval({ title, slides, caption, imageUrl, fileName, botToken, chatId }) {
+export async function sendTelegramApproval({ title, slides, caption, imageUrl, fileName, articleLink, articleSource, articleSummary, botToken, chatId }) {
   const telegramUrl = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
   const slidePreview = slides.map((s, i) => `📌 **[슬라이드 ${i + 1}]**\n${s}`).join('\n\n');
+  
+  let sourceText = '';
+  if (articleLink) {
+    sourceText = `\n🔗 **원문 기사 출처**: [${articleSource || '기사 출처 링크 보기'}](${articleLink})`;
+  }
+  let summaryText = '';
+  if (articleSummary) {
+    summaryText = `\n📜 **원문 기사 요약 전문**:\n> ${articleSummary.slice(0, 300)}...`;
+  }
+
   const messageText = `🚀 **[인스타 카드뉴스 생성 완료 - 승인 요청]**\n\n` +
     `📖 **제목**: ${title}\n` +
-    `📁 **Gemma 지정 파일명**: \`${fileName}.pdf\`\n\n` +
+    `📁 **Gemma 지정 파일명**: \`${fileName}.pdf\`\n` +
+    `${sourceText}${summaryText}\n\n` +
     `${slidePreview}\n\n` +
     `📝 **인스타 캡션**:\n${caption}\n\n` +
-    `🖼 **배경 이미지**: ${imageUrl}`;
+    `💬 *'👉 댓글에서 전문을 확인해 보세요' 멘트가 4번 슬라이드와 캡션에 기본 적용되었습니다.*`;
+
 
   // 승인 데이터 유지를 위해 인코딩
   const payloadData = JSON.stringify({ slides, caption, imageUrl, fileName });
