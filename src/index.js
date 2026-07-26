@@ -124,7 +124,12 @@ async function runAutomationPipeline(env, onProgress = null) {
   if (!rssItems || rssItems.length === 0) {
     throw new Error('수집된 RSS 기사가 없습니다.');
   }
-  const targetArticle = rssItems[Math.floor(Math.random() * rssItems.length)];
+  // 수집된 기사 중 무작위 선택
+
+  const randomIndex = Math.floor((Math.random() * Date.now()) % rssItems.length);
+  const targetArticle = rssItems[randomIndex];
+  console.log(`[PIPELINE] Selected Article: ${targetArticle.title}`);
+
 
   // Step 2: Gemini API & Cloudflare Workers AI를 통한 한국어 100% 재창작 카드뉴스 구성
   if (onProgress) await onProgress("🤖 [2/4] AI 엔진이 한국어로 카드뉴스를 재창작(Paraphrasing)하는 중...");
