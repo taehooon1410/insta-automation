@@ -1,13 +1,11 @@
 /**
- * Gemini API 모듈 (안정적인 gemini-flash-latest 기반 100% 가동 및 쿼터 회피)
+ * Gemini API 모듈 (안정적인 gemini-flash-latest & gemini-pro-latest 단독 연동)
  */
 export async function generateCardNewsContent(article, apiKey) {
   // 100% 작동 검증된 가용 모델 순서
   const candidateModels = [
     'gemini-flash-latest',
-    'gemini-2.0-flash-lite',
-    'gemini-pro-latest',
-    'gemini-2.5-flash-lite'
+    'gemini-pro-latest'
   ];
 
   let cardNewsResult = null;
