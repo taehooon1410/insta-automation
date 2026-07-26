@@ -23,11 +23,12 @@ export async function sendTelegramApproval({ title, slides, caption, imageUrl, f
   const inlineKeyboard = {
     inline_keyboard: [
       [
-        { text: '✅ 게시 승인 (업로드)', callback_data: `approve_${encodedPayload}` },
+        { text: '✅ 게시 승인 (업로드)', callback_data: 'approve_now' },
         { text: '❌ 거절 (취소)', callback_data: 'reject_post' }
       ]
     ]
   };
+
 
   const response = await fetch(telegramUrl, {
     method: 'POST',
