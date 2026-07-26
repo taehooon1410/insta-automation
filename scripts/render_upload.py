@@ -92,9 +92,10 @@ def generate_slides(slides_text, bg_image_url, article_title=""):
         # 본문 텍스트 출력
         draw.multiline_text((x, y), full_text, fill=(255, 255, 255), font=content_font, align="center", spacing=18)
         
-        # 6) 하단 프로필/출처 유도 안내 Footer
-        footer_note = "👉 댓글에서 기사 전문 확인 가능 | 텔레그램에서 상세 출처 제공"
+        # 6) 하단 인스타그램 전용 프로필/댓글 유도 Footer
+        footer_note = "👉 댓글에서 전문을 확인해 보세요!"
         draw.text((130, 905), footer_note, fill=(180, 190, 210), font=footer_font)
+
         
         # 7) 슬라이드 페이지 인디케이터
         page_str = f"{idx + 1} / {len(slides_text)}"
@@ -167,7 +168,8 @@ if __name__ == "__main__":
             "📢 최신 이색 과학 이슈",
             "📌 우주 탐사선이 외계 신호를 감지했습니다.\n연구팀은 이번 발견이 지구 외 생명체 탐사에 큰 전환점이 될 것으로 전망하고 있습니다.",
             "💡 발견의 주요 의미:\n기존 연구 방식에서 벗어난 새로운 분석 기술이 적용되어 신호의 규칙성을 입증했습니다.",
-            "👉 댓글에서 기사 전문을 확인해 보세요!\n상세 자료 출처 및 전문은 텔레그램 채널에서 보실 수 있습니다."
+            "👉 댓글에서 기사 전문을 확인해 보세요!\n프로필 링크를 클릭해 더 많은 이슈를 확인하세요!"
+
         ]
         caption = payload.get("caption", "이색 과학 알림봇 #과학 #카드뉴스 #자동화")
         bg_image_url = payload.get("imageUrl", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1080&auto=format&fit=crop")
