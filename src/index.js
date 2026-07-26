@@ -4,9 +4,11 @@ import { getUnsplashImage } from './unsplash.js';
 import { sendTelegramApproval, answerCallbackQuery } from './telegram.js';
 
 export default {
-  // 1. Cron Trigger (자동 정기 실행)
+// 1. Cron Trigger (자동 정기 실행)
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runAutomationPipeline(env));
+    ctx.waitUntil(runAutomationPipeline(env).catch(async (err) => {
+      await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `🚨 **[자동화 파이프라인 에러 발생]**\n\n\`\`\`\n${err.stack || err.message}\n\`\`\``, env.TELEGRAM_BOT_TOKEN);
+    }));
   },
 
   // 2. HTTP Endpoint (수동 실행 & 텔레그램 Webhook & 테스트)
@@ -26,7 +28,6 @@ export default {
       return new Response(await res.text(), { headers: { 'Content-Type': 'application/json' } });
     }
 
-
     // [수동 파이프라인 트리거] -> GET /trigger
     if (url.pathname === '/trigger') {
       try {
@@ -35,6 +36,7 @@ export default {
           headers: { 'Content-Type': 'application/json' }
         });
       } catch (err) {
+        await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `⚠️ **[수동 실행 오류]**\n\n${err.message}`, env.TELEGRAM_BOT_TOKEN);
         return new Response(JSON.stringify({ success: false, error: err.message }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
@@ -53,12 +55,10 @@ export default {
           const text = update.message.text.trim();
 
           if (text.includes('만들기') || text === '/generate' || text === '/start') {
-            // 실시간 진행 상황 알림 시작
             const statusMsg = await sendTelegramMessage(chatId, "🚀 **[인스타그램 카드뉴스 자동 생성 시작]**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
             const msgId = statusMsg.result?.message_id;
 
             try {
-              // 파이프라인 수행 및 실시간 상태 수정
               const onProgress = async (stepText) => {
                 if (msgId) {
                   await editTelegramMessage(chatId, msgId, `🚀 **[인스타그램 카드뉴스 자동 생성]**\n\n${stepText}`, env.TELEGRAM_BOT_TOKEN);
@@ -67,12 +67,13 @@ export default {
 
               await runAutomationPipeline(env, onProgress);
             } catch (pipelineErr) {
+              await sendTelegramMessage(chatId, `🚨 **[카드뉴스 생성 중 에러 발생]**\n\n오류 내용:\n\`\`\`\n${pipelineErr.stack || pipelineErr.message}\n\`\`\``, env.TELEGRAM_BOT_TOKEN);
               if (msgId) {
-                await editTelegramMessage(chatId, msgId, `❌ **[생성 실패]**\n\n오류 내용: ${pipelineErr.message}`, env.TELEGRAM_BOT_TOKEN);
+                await editTelegramMessage(chatId, msgId, `❌ **[생성 실패]**\n\n오류: ${pipelineErr.message}`, env.TELEGRAM_BOT_TOKEN);
               }
             }
           } else if (text === '/status') {
-            await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
+            await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash + Gemma 4 31B IT\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
           } else if (text === '/help') {
             await sendTelegramMessage(chatId, "💡 **[텔레그램 봇 명령어 가이드]**\n\n• `만들기` 또는 `/generate` : 카드뉴스 제작 파이프라인 즉시 실행\n• `/status` : 시스템 상태 및 Cron 스케줄 확인\n• `/help` : 도움말 보기", env.TELEGRAM_BOT_TOKEN);
           }
@@ -85,7 +86,7 @@ export default {
           const data = cb.data;
 
           if (data.startsWith('approve_')) {
-            await answerCallbackQuery(cb.id, '✅ 승인되었습니다! GitHub Actions 카드뉴스 렌더링 & 인스타 업로드를 시작합니다.', env.TELEGRAM_BOT_TOKEN);
+            await answerCallbackQuery(cb.id, '✅ 승인되었습니다! GitHub Actions 카드뉴스 렌더링 & PDF 전송을 시작합니다.', env.TELEGRAM_BOT_TOKEN);
 
             const payloadData = {
               slides: env.LAST_SLIDES ? JSON.parse(env.LAST_SLIDES) : [],
@@ -114,14 +115,15 @@ export default {
 
         return new Response('OK');
       } catch (err) {
+        await sendTelegramMessage(env.TELEGRAM_CHAT_ID, `🚨 **[Webhook 오류 발생]**\n\n${err.stack || err.message}`, env.TELEGRAM_BOT_TOKEN);
         return new Response(`Webhook Error: ${err.message}`, { status: 500 });
       }
     }
 
-
     return new Response('🚀 Cloudflare Pages/Worker 인스타그램 자동화 중앙 컨트롤러 작동 중');
   }
 };
+
 
 /**
  * 자동화 파이프라인 실행 코어 로직

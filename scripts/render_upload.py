@@ -126,25 +126,37 @@ def send_results_to_telegram(image_paths, pdf_path, caption):
             print("[SUCCESS] PDF sent to Telegram successfully!")
 
 if __name__ == "__main__":
-    payload_raw = os.getenv("CLIENT_PAYLOAD", "{}")
     try:
-        payload = json.loads(payload_raw) if payload_raw else {}
-    except Exception:
-        payload = {}
+        payload_raw = os.getenv("CLIENT_PAYLOAD", "{}")
+        try:
+            payload = json.loads(payload_raw) if payload_raw else {}
+        except Exception:
+            payload = {}
 
-    slides = payload.get("slides") or [
-        "이색 과학 뉴스 #1",
-        "우주 탐사선이 외계 신호를 감지했습니다.",
-        "자세한 사항은 연구소 발표를 확인하세요.",
-        "👉 프로필 링크에서 전문을 확인하고 댓글로 의견을 남겨주세요!"
-    ]
-    caption = payload.get("caption", "이색 과학 알림봇 #과학 #카드뉴스 #자동화")
-    bg_image_url = payload.get("imageUrl", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1080&auto=format&fit=crop")
-    file_name = payload.get("fileName", "cardnews")
-    os.environ["CUSTOM_FILE_NAME"] = file_name
+        slides = payload.get("slides") or [
+            "이색 과학 뉴스 #1",
+            "우주 탐사선이 외계 신호를 감지했습니다.",
+            "자세한 사항은 연구소 발표를 확인하세요.",
+            "👉 프로필 링크에서 전문을 확인하고 댓글로 의견을 남겨주세요!"
+        ]
+        caption = payload.get("caption", "이색 과학 알림봇 #과학 #카드뉴스 #자동화")
+        bg_image_url = payload.get("imageUrl", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1080&auto=format&fit=crop")
+        file_name = payload.get("fileName", "cardnews")
+        os.environ["CUSTOM_FILE_NAME"] = file_name
 
-    # 렌더링 및 텔레그램으로 이미지 & PDF 직접 전송
-    image_files, pdf_file = generate_slides(slides, bg_image_url)
-    send_results_to_telegram(image_files, pdf_file, caption)
+        # 렌더링 및 텔레그램으로 이미지 & PDF 직접 전송
+        image_files, pdf_file = generate_slides(slides, bg_image_url)
+        send_results_to_telegram(image_files, pdf_file, caption)
+    except Exception as e:
+        bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        if bot_token and chat_id:
+            requests.post(f"https://api.telegram.org/bot{bot_token}/sendMessage", data={
+                "chat_id": chat_id,
+                "text": f"🚨 **[GitHub Actions 렌더링 파이프라인 에러]**\n\n```\n{str(e)}\n```",
+                "parse_mode": "Markdown"
+            })
+        sys.exit(1)
+
 
 
