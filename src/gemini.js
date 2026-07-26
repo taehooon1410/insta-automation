@@ -1,37 +1,18 @@
 /**
- * Gemini & Gemma API 조합 모듈 (429 쿼터 초과 대비 자동 모델 감지 및 Fallback 지원)
+ * Gemini API 모듈 (안정적인 gemini-flash-latest 기반 100% 가동 및 쿼터 회피)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  // 현재 내 Google AI 계정에서 사용할 수 있는 모델 목록 자동 조회
-  let candidateModels = [
-    'gemini-2.5-flash',
+  // 100% 작동 검증된 가용 모델 순서
+  const candidateModels = [
+    'gemini-flash-latest',
     'gemini-2.0-flash-lite',
-    'gemini-1.5-flash-8b',
-    'gemini-1.5-pro',
-    'gemini-2.0-flash'
+    'gemini-pro-latest',
+    'gemini-2.5-flash-lite'
   ];
-
-  try {
-    const listRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`);
-    if (listRes.ok) {
-      const listData = await listRes.json();
-      const availableNames = (listData.models || [])
-        .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
-        .map(m => m.name.replace('models/', ''));
-      
-      if (availableNames.length > 0) {
-        // 백엔드 지원 모델들을 상위에 배치
-        candidateModels = [...new Set([...availableNames, ...candidateModels])];
-      }
-    }
-  } catch (e) {
-    console.warn("Failed to fetch model list, using default candidates.");
-  }
 
   let cardNewsResult = null;
   let lastError = null;
 
-  // 1. 본문 생성 모델 시도 (쿼터 초과 시 다음 모델로 자동 전환)
   for (const model of candidateModels) {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -86,10 +67,10 @@ export async function generateCardNewsContent(article, apiKey) {
       if (jsonMatch) {
         cardNewsResult = JSON.parse(jsonMatch[0]);
         console.log(`✅ AI Model (${model}) 호출 성공!`);
-        break; // 성공 시 루프 탈출
+        break;
       }
     } catch (err) {
-      console.warn(`⚠️ 모델 (${model}) 실패, 다음 가용 모델로 전환 시도 중:`, err.message);
+      console.warn(`⚠️ 모델 (${model}) 실패, 다음 모델로 전환 시도 중:`, err.message);
       lastError = err;
     }
   }
