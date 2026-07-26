@@ -84,71 +84,44 @@ def generate_slides(slides_text, bg_image_url):
         draw.text((512, 1010), page_str, fill=(200, 200, 200), font=page_font)
 
         
-        output_name = f"slide_{idx + 1}.jpg"
-        img.convert("RGB").save(output_name, "JPEG", quality=95)
-        generated_files.append(output_name)
-        print(f"[SUCCESS] Slide generated: {output_name}")
-        
-    return generated_files
+    # 슬라이드들을 하나의 PDF 문서로 결합
+    pdf_path = "cardnews.pdf"
+    if generated_files:
+        img_objs = [Image.open(f).convert("RGB") for f in generated_files]
+        img_objs[0].save(pdf_path, save_all=True, append_images=img_objs[1:])
+        print(f"[SUCCESS] PDF generated: {pdf_path}")
 
-# 3. Meta Graph API (Instagram Carousel) 자동 포스팅
-def upload_to_instagram(image_paths, caption):
-    access_token = os.getenv("META_ACCESS_TOKEN")
-    ig_user_id = os.getenv("META_IG_USER_ID")
-    host_server = os.getenv("IMAGE_HOST_SERVER", "https://imgbb.com") # 서빙용 호스트 URL
+    return generated_files, pdf_path
+
+# 3. 텔레그램으로 이미지 슬라이드 및 PDF 파일 직접 전송
+def send_results_to_telegram(image_paths, pdf_path, caption):
+    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
     
-    if not access_token or not ig_user_id:
-        print("[NOTICE] META_ACCESS_TOKEN or META_IG_USER_ID is not set. Generated slides locally.")
+    if not bot_token or not chat_id:
+        print("[NOTICE] TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID is not set.")
         return
 
-    print("[INFO] Uploading slides to Instagram Carousel via Meta Graph API...")
+    print("[INFO] Sending rendered images and PDF to Telegram...")
 
-    
-    # 인스타그램 업로드를 위한 공개 이미지 URL 생성 및 아이템 컨테이너 생성
-    item_container_ids = []
-    
-    for img_path in image_paths:
-        # ImgBB 등 무상 이미지 호스팅 서비스로 업로드하여 공개 URL 확보
-        with open(img_path, "rb") as file:
-            res = requests.post("https://api.imgbb.com/1/upload", data={"key": os.getenv("IMGBB_API_KEY", "demo")}, files={"image": file})
-            public_url = res.json()["data"]["url"]
+    # A. 각 카드뉴스 슬라이드 이미지 전송 (sendPhoto)
+    for idx, img_path in enumerate(image_paths):
+        with open(img_path, "rb") as photo:
+            url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+            requests.post(url, data={
+                "chat_id": chat_id,
+                "caption": f"📌 카드뉴스 슬라이드 {idx + 1}/{len(image_paths)}"
+            }, files={"photo": photo})
 
-        # 1) 단일 사진 컨테이너 생성
-        container_url = f"https://graph.facebook.com/v18.0/{ig_user_id}/media"
-        c_res = requests.post(container_url, data={
-            "image_url": public_url,
-            "is_carousel_item": "true",
-            "access_token": access_token
-        }).json()
-        
-        if "id" in c_res:
-            item_container_ids.append(c_res["id"])
-            print(f"✅ 슬라이드 컨테이너 생성 성공: {c_res['id']}")
-        else:
-            print(f"❌ 컨테이너 생성 실패: {c_res}")
-
-    # 2) 카러셀 메인 컨테이너 생성
-    carousel_url = f"https://graph.facebook.com/v18.0/{ig_user_id}/media"
-    carousel_res = requests.post(carousel_url, data={
-        "media_type": "CAROUSEL",
-        "children": ",".join(item_container_ids),
-        "caption": caption,
-        "access_token": access_token
-    }).json()
-
-    carousel_id = carousel_res.get("id")
-    if not carousel_id:
-        print(f"❌ 카러셀 생성 실패: {carousel_res}")
-        return
-
-    # 3) 최종 게시물 게시 (Publish)
-    publish_url = f"https://graph.facebook.com/v18.0/{ig_user_id}/media_publish"
-    pub_res = requests.post(publish_url, data={
-        "creation_id": carousel_id,
-        "access_token": access_token
-    }).json()
-
-    print(f"🎉 인스타그램 자동 포스팅 완료! Post ID: {pub_res.get('id')}")
+    # B. 전체 PDF 문서 전송 (sendDocument)
+    if os.path.exists(pdf_path):
+        with open(pdf_path, "rb") as doc:
+            url = f"https://api.telegram.org/bot{bot_token}/sendDocument"
+            requests.post(url, data={
+                "chat_id": chat_id,
+                "caption": f"📄 **[카드뉴스 전체 PDF 다운로드]**\n\n{caption}"
+            }, files={"document": doc})
+            print("[SUCCESS] PDF sent to Telegram successfully!")
 
 if __name__ == "__main__":
     payload_raw = os.getenv("CLIENT_PAYLOAD", "{}")
@@ -163,6 +136,7 @@ if __name__ == "__main__":
     caption = payload.get("caption", "이색 과학 알림봇 #과학 #카드뉴스 #자동화")
     bg_image_url = payload.get("imageUrl", "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1080&auto=format&fit=crop")
 
-    # 렌더링 및 업로드 수행
-    image_files = generate_slides(slides, bg_image_url)
-    upload_to_instagram(image_files, caption)
+    # 렌더링 및 텔레그램으로 이미지 & PDF 직접 전송
+    image_files, pdf_file = generate_slides(slides, bg_image_url)
+    send_results_to_telegram(image_files, pdf_file, caption)
+

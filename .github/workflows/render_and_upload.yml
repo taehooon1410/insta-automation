@@ -22,11 +22,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install Pillow requests
 
-      - name: Render Slides & Upload to Instagram
+      - name: Render Slides & Send PDF/Images to Telegram
         env:
-          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
-          META_IG_USER_ID: ${{ secrets.META_IG_USER_ID }}
-          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           CLIENT_PAYLOAD: ${{ json(github.event.client_payload) }}
         run: |
           python scripts/render_upload.py
+
