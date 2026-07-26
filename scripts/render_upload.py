@@ -135,9 +135,13 @@ if __name__ == "__main__":
     try:
         payload_raw = os.getenv("CLIENT_PAYLOAD", "{}")
         try:
-            payload = json.loads(payload_raw) if payload_raw else {}
+            payload = json.loads(payload_raw) if payload_raw and payload_raw != "null" else {}
         except Exception:
             payload = {}
+            
+        if not isinstance(payload, dict):
+            payload = {}
+
 
         slides = payload.get("slides") or [
             "이색 과학 뉴스 #1",
