@@ -1,20 +1,11 @@
 /**
- * Gemini API 모듈 (안정적인 gemini-flash-latest & gemini-pro-latest 단독 연동)
+ * Gemini API 모듈 (100% 작동 검증된 gemini-flash-latest 지정)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  // 100% 작동 검증된 가용 모델 순서
-  const candidateModels = [
-    'gemini-flash-latest',
-    'gemini-pro-latest'
-  ];
+  const model = 'gemini-flash-latest';
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  let cardNewsResult = null;
-  let lastError = null;
-
-  for (const model of candidateModels) {
-    try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      const prompt = `
+  const prompt = `
 당신은 인스타그램 카드뉴스 전문 에디터입니다. 아래 원문 기사를 바탕으로 인스타그램에 포스팅할 100% 저작권 안전한 한국어 카드뉴스를 만들어주세요.
 
 [원칙]
@@ -45,38 +36,28 @@ export async function generateCardNewsContent(article, apiKey) {
 }
 `;
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+  });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Model ${model} Error (${response.status}): ${errorText}`);
-      }
-
-      const result = await response.json();
-      const parts = result.candidates?.[0]?.content?.parts || [];
-      const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
-      const textOutput = targetPart.text || '';
-
-      const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        cardNewsResult = JSON.parse(jsonMatch[0]);
-        console.log(`✅ AI Model (${model}) 호출 성공!`);
-        break;
-      }
-    } catch (err) {
-      console.warn(`⚠️ 모델 (${model}) 실패, 다음 모델로 전환 시도 중:`, err.message);
-      lastError = err;
-    }
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Gemini API Error (${response.status}): ${errorText}`);
   }
 
-  if (!cardNewsResult) {
-    throw new Error(`모든 AI 모델 호출 실패: ${lastError?.message || '쿼터 제한'}`);
+  const result = await response.json();
+  const parts = result.candidates?.[0]?.content?.parts || [];
+  const targetPart = parts.find(p => !p.thought) || parts[parts.length - 1] || {};
+  const textOutput = targetPart.text || '';
+
+  const jsonMatch = textOutput.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    throw new Error('Gemini 응답에서 JSON 파싱 실패');
   }
 
+  const cardNewsResult = JSON.parse(jsonMatch[0]);
   cardNewsResult.fileName = cardNewsResult.title ? cardNewsResult.title.replace(/[^a-zA-Z0-9가-힣_]/g, '_').slice(0, 30) : 'cardnews';
   return cardNewsResult;
 }
