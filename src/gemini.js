@@ -1,8 +1,8 @@
 /**
- * Gemini API 모듈 (글로벌 2.5 Flash 모델 기반 연동)
+ * Gemini API 모듈 (429 Rate Limit 대비 자동 Retry & Backoff 지연 처리)
  */
 export async function generateCardNewsContent(article, apiKey) {
-  const model = 'gemini-2.5-flash';
+  const model = 'gemini-2.0-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const prompt = `
@@ -36,17 +36,29 @@ export async function generateCardNewsContent(article, apiKey) {
 }
 `;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-  });
+  let response = null;
+  let attempts = 0;
+  const maxAttempts = 3;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Gemini API Error (${response.status}): ${errorText}`);
+  while (attempts < maxAttempts) {
+    attempts++;
+    response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+
+    if (response.ok) {
+      break;
+    }
+
+    if (response.status === 429 && attempts < maxAttempts) {
+      console.log(`⚠️ Gemini API 429 쿼터 초과. ${attempts * 5}초 후 재시도 중...`);
+      await new Promise(resolve => setTimeout(resolve, attempts * 5000));
+    } else {
+      const errorText = await response.text();
+      throw new Error(`Gemini API 오류 (${response.status}): ${errorText}`);
+    }
   }
 
   const result = await response.json();
