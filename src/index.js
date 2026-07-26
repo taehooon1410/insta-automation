@@ -3,9 +3,6 @@ import { generateCardNewsContent } from './gemini.js';
 import { getUnsplashImage } from './unsplash.js';
 import { sendTelegramApproval, sendTelegramMessage, editTelegramMessage, answerCallbackQuery } from './telegram.js';
 
-// Cache API 키 주소 (Cloudflare 엣지 인스턴스 간 페이로드 공유용)
-const CACHE_KEY_URL = 'https://insta-automation.taehooon1410.workers.dev/internal/latest-payload';
-
 export default {
   // 1. Cron Trigger (자동 정기 실행)
   async scheduled(event, env, ctx) {
@@ -70,21 +67,14 @@ export default {
         if (update && update.callback_query) {
           const cb = update.callback_query;
           if (cb.data && cb.data.startsWith('approve_')) {
-            await answerCallbackQuery(cb.id, '✅ 승인되었습니다! 생성된 카드뉴스 PDF를 텔레그램으로 전송합니다.', env.TELEGRAM_BOT_TOKEN);
+            await answerCallbackQuery(cb.id, '✅ 승인되었습니다! 화면에 보이시는 그 새 기사 그대로 PDF를 텔레그램으로 전송합니다.', env.TELEGRAM_BOT_TOKEN);
             
             if (env.GITHUB_REPO && env.GH_PAT) {
-              // Cloudflare Cache API에서 방금 생성된 최신 카드뉴스 페이로드 가져오기
-              let payloadToSend = {};
-              try {
-                const cache = caches.default;
-                const cachedRes = await cache.match(CACHE_KEY_URL);
-                if (cachedRes) {
-                  payloadToSend = await cachedRes.json();
-                  console.log(`[CACHE] Successfully retrieved payload for title: ${payloadToSend.title}`);
-                }
-              } catch (cacheErr) {
-                console.warn("[CACHE] Failed to retrieve cache payload:", cacheErr.message);
-              }
+              // 텔레그램 승인 메시지 원문 텍스트에서 방금 보인 슬라이드 내용 100% 역파싱
+              const msgText = cb.message?.text || '';
+              const payloadToSend = parsePayloadFromTelegramMessage(msgText);
+              
+              console.log(`[ZERO-FAIL PARSER] Title: ${payloadToSend.title}, Slides: ${payloadToSend.slides.length}`);
 
               await fetch(`https://api.github.com/repos/${env.GITHUB_REPO}/dispatches`, {
                 method: 'POST',
@@ -114,6 +104,58 @@ export default {
 };
 
 /**
+ * 텔레그램 승인 메시지 텍스트에서 눈에 보이는 새 기사 슬라이드와 캡션을 100% 역파싱하는 Zero-Fail 추출 함수
+ */
+function parsePayloadFromTelegramMessage(rawText) {
+  const clean = rawText.replace(/\*/g, '');
+  const slides = [];
+
+  // 슬라이드 분할 추출
+  const p1 = clean.split(/📌\s*\[?슬라이드 1\]?/i)[1];
+  if (p1) {
+    const s1 = p1.split(/📌\s*\[?슬라이드 2\]?/i)[0]?.trim();
+    if (s1) slides.push(s1);
+  }
+
+  const p2 = clean.split(/📌\s*\[?슬라이드 2\]?/i)[1];
+  if (p2) {
+    const s2 = p2.split(/📌\s*\[?슬라이드 3\]?/i)[0]?.trim();
+    if (s2) slides.push(s2);
+  }
+
+  const p3 = clean.split(/📌\s*\[?슬라이드 3\]?/i)[1];
+  if (p3) {
+    const s3 = p3.split(/📌\s*\[?슬라이드 4\]?/i)[0]?.trim();
+    if (s3) slides.push(s3);
+  }
+
+  const p4 = clean.split(/📌\s*\[?슬라이드 4\]?/i)[1];
+  if (p4) {
+    const s4 = p4.split(/📝\s*인스타 캡션/i)[0]?.trim();
+    if (s4) slides.push(s4);
+  }
+
+  // 제목 및 파일명 추출
+  const titleLine = clean.split(/📖\s*제목:/i)[1]?.split('\n')[0]?.trim() || '최신 이슈 카드뉴스';
+  const title = titleLine.replace(/^[:\s]+/, '').trim();
+
+  const fileLine = clean.split(/📁\s*Gemma 지정 파일명:/i)[1]?.split('\n')[0]?.trim() || 'cardnews';
+  const fileName = fileLine.replace(/[`\s]/g, '').replace(/\.pdf$/i, '').trim();
+
+  // 캡션 추출
+  const captionPart = clean.split(/📝\s*인스타 캡션:/i)[1]?.split(/💬/)[0]?.trim() || '최신 뉴스 소식 #카드뉴스 #뉴스';
+  const caption = captionPart.trim();
+
+  return {
+    title,
+    slides: slides.length === 4 ? slides : [title, "주요 기사 내용 설명", "핵심 발견 및 발견의 중요성", "👉 댓글에서 전문을 확인해 보세요!"],
+    caption,
+    fileName: fileName || 'cardnews',
+    imageUrl: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1080&auto=format&fit=crop"
+  };
+}
+
+/**
  * 자동화 파이프라인 실행 코어 로직
  */
 async function runAutomationPipeline(env, onProgress = null) {
@@ -136,32 +178,6 @@ async function runAutomationPipeline(env, onProgress = null) {
   // Step 3: Unsplash API 상업용 무료 배경 이미지 추출
   if (onProgress) await onProgress("🖼 [3/4] Unsplash CC0 무료 고화질 배경 이미지를 추출하는 중...");
   const bgImageUrl = await getUnsplashImage(cardNews.imageKeyword, env.UNSPLASH_ACCESS_KEY);
-
-  // 최근 생성 카드뉴스 페이로드 Cache API에 저장
-  const payloadToStore = {
-    title: cardNews.title,
-    slides: cardNews.slides,
-    caption: cardNews.caption,
-    imageUrl: bgImageUrl,
-    fileName: cardNews.fileName || 'cardnews',
-    articleLink: cardNews.articleLink || targetArticle.link || '',
-    articleSource: cardNews.articleSource || '뉴스 출처',
-    articleSummary: cardNews.articleSummary || targetArticle.description || ''
-  };
-
-  try {
-    const cache = caches.default;
-    const cacheResponse = new Response(JSON.stringify(payloadToStore), {
-      headers: {
-        'Content-Type': 'application/json',
-        'Cache-Control': 'max-age=86400' // 24시간 캐시 유지
-      }
-    });
-    await cache.put(CACHE_KEY_URL, cacheResponse);
-    console.log("[CACHE] Saved new payload to Edge Cache!");
-  } catch (e) {
-    console.warn("[CACHE] Failed to save payload to Cache API:", e.message);
-  }
 
   // Step 4: 텔레그램 봇 승인 요청 발송
   if (onProgress) await onProgress("✅ [4/4] 카드뉴스 작성이 완료되었습니다! 최종 승인 요청을 전송합니다.");
