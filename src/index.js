@@ -1,7 +1,8 @@
 import { fetchRSS } from './rss.js';
 import { generateCardNewsContent } from './gemini.js';
 import { getUnsplashImage } from './unsplash.js';
-import { sendTelegramApproval, answerCallbackQuery } from './telegram.js';
+import { sendTelegramApproval, sendTelegramMessage, editTelegramMessage, answerCallbackQuery } from './telegram.js';
+
 
 export default {
 // 1. Cron Trigger (자동 정기 실행)
@@ -42,7 +43,6 @@ export default {
 
     // 텔레그램 Webhook 수신 -> POST /telegram-webhook
     if (url.pathname === '/telegram-webhook' && request.method === 'POST') {
-
       try {
         const update = await request.json();
         
@@ -52,10 +52,26 @@ export default {
 
           if (text.includes('만들기') || text.includes('/generate') || text.includes('/start')) {
             ctx.waitUntil((async () => {
-              await sendTelegramMessage(chatId, "🚀 **[Cloudflare 백엔드] 인스타그램 카드뉴스 생성 시작**\n\n- RSS 파싱 & Gemini AI 가동 중...", env.TELEGRAM_BOT_TOKEN);
-              const currentEnv = { ...env, TELEGRAM_CHAT_ID: String(chatId) };
-              await runAutomationPipeline(currentEnv);
+              const statusMsg = await sendTelegramMessage(chatId, "🚀 **[Cloudflare 백엔드] 인스타그램 카드뉴스 생성 시작**\n\n⏳ [1/4] 해외 과학 RSS 뉴스 파싱 중...", env.TELEGRAM_BOT_TOKEN);
+              const msgId = statusMsg.result?.message_id;
+
+              const onProgress = async (stepText) => {
+                if (msgId) {
+                  await editTelegramMessage(chatId, msgId, `🚀 **[Cloudflare 백엔드] 인스타그램 카드뉴스 생성**\n\n${stepText}`, env.TELEGRAM_BOT_TOKEN);
+                }
+              };
+
+              try {
+                const currentEnv = { ...env, TELEGRAM_CHAT_ID: String(chatId) };
+                await runAutomationPipeline(currentEnv, onProgress);
+              } catch (pipelineErr) {
+                await sendTelegramMessage(chatId, `🚨 **[카드뉴스 생성 에러]**\n\n\`\`\`\n${pipelineErr.stack || pipelineErr.message}\n\`\`\``, env.TELEGRAM_BOT_TOKEN);
+              }
             })());
+          } else if (text.includes('/status')) {
+            await sendTelegramMessage(chatId, "📊 **[시스템 상태 정보]**\n\n• 백엔드: Cloudflare Worker (정상 연동)\n• 스케줄러: 매일 09시 / 18시\n• AI 모델: Gemini 2.0 Flash + Gemma 4 31B IT\n• 이미지: Unsplash API", env.TELEGRAM_BOT_TOKEN);
+          } else if (text.includes('/help')) {
+            await sendTelegramMessage(chatId, "💡 **[텔레그램 봇 명령어 가이드]**\n\n• `만들기` 또는 `/generate` : 카드뉴스 제작 파이프라인 즉시 실행\n• `/status` : 시스템 상태 확인\n• `/help` : 도움말 보기", env.TELEGRAM_BOT_TOKEN);
           } else {
             await sendTelegramMessage(chatId, `🤖 **[Cloudflare Workers 클라우드 백엔드]**\n\n안녕하세요! **\`만들기\`** 또는 **\`/generate\`**를 입력하시면 카드뉴스가 자동 생성됩니다.`, env.TELEGRAM_BOT_TOKEN);
           }
@@ -85,10 +101,11 @@ export default {
 
         return new Response('OK', { status: 200 });
       } catch (err) {
-        console.error("Worker Webhook Error:", err.message);
+        console.error("Worker Webhook Error:", err);
         return new Response('OK', { status: 200 });
       }
     }
+
 
     return new Response('🚀 Cloudflare Worker 백엔드 작동 중');
   }
