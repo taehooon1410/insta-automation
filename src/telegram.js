@@ -17,7 +17,8 @@ export async function sendTelegramApproval({ title, slides, caption, imageUrl, f
   // 승인 데이터 유지를 위해 인코딩
   const payloadData = JSON.stringify({ slides, caption, imageUrl, fileName });
 
-  const encodedPayload = Buffer.from(payloadData).toString('base64url').slice(0, 60); // 텔레그램 callback_data 길이 제한 호환
+  const encodedPayload = btoa(encodeURIComponent(payloadData)).replace(/=/g, '').slice(0, 60); // 텔레그램 callback_data 길이 제한 호환
+
 
   const inlineKeyboard = {
     inline_keyboard: [
