@@ -1,0 +1,15 @@
+name = "insta-automation"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# 주기적 자동 실행 (매일 오전 9시, 오후 6시 RSS 수집 & Gemini 요약)
+[triggers]
+crons = ["0 0,9 * * *"]
+
+# 바인딩할 환경변수 목록 (Cloudflare Dashboard 또는 CLI에서 wrangler secret put으로 설정)
+# - GEMINI_API_KEY
+# - UNSPLASH_ACCESS_KEY
+# - TELEGRAM_BOT_TOKEN
+# - TELEGRAM_CHAT_ID
+# - GITHUB_REPO (예: owner/repo)
+# - GH_PAT (GitHub Personal Access Token)
