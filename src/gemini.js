@@ -2,7 +2,12 @@
  * Gemini API를 통한 원문 텍스트 패러프레이징 및 카드뉴스 구성 생성
  */
 export async function generateCardNewsContent(article, apiKey) {
-  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+
+
+
+
 
   const prompt = `
 당신은 인스타그램 카드뉴스 전문 에디터입니다. 아래 원문 기사를 바탕으로 인스타그램에 포스팅할 100% 저작권 안전한 한국어 카드뉴스를 만들어주세요.

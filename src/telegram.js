@@ -45,7 +45,37 @@ export async function sendTelegramApproval({ title, slides, caption, imageUrl, b
   return await response.json();
 }
 
-// 2. 텔레그램 콜백 응답 (승인 알림 메시지 업데이트)
+// 2. 텔레그램 메세지 수정 (실시간 진행 상황 업데이트용)
+export async function editTelegramMessage(chatId, messageId, text, botToken) {
+  const url = `https://api.telegram.org/bot${botToken}/editMessageText`;
+  await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text: text,
+      parse_mode: 'Markdown'
+    })
+  });
+}
+
+// 3. 텔레그램 메세지 신규 전송
+export async function sendTelegramMessage(chatId, text, botToken) {
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text: text,
+      parse_mode: 'Markdown'
+    })
+  });
+  return await res.json();
+}
+
+// 4. 텔레그램 콜백 응답 (승인 알림 메시지 업데이트)
 export async function answerCallbackQuery(callbackQueryId, text, botToken) {
   const url = `https://api.telegram.org/bot${botToken}/answerCallbackQuery`;
   await fetch(url, {
@@ -58,3 +88,4 @@ export async function answerCallbackQuery(callbackQueryId, text, botToken) {
     })
   });
 }
+
